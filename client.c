@@ -17,7 +17,7 @@ how does crypt know where the end of the message is?
 
 int step1(unsigned char prekey[24], unsigned char serverkey[24], unsigned char io[200]) {
 
-     memcpy(serverpublic, serverkey, 24);
+     memcpy(&serverpublic, &serverkey, 24);
      crypto_box_keypair(pk,sk); //generate keypair
      crypto_box_keypair(n1,n1); //generate nonce 1
 
@@ -27,16 +27,16 @@ int step1(unsigned char prekey[24], unsigned char serverkey[24], unsigned char i
      memcpy(concat[24], pk, 24);
 
      //encrypt with preset key as sender secret key
-     crypto_box(io, concat, 48, n1, serverkey, prekey);
+     crypto_box(io, concat, 48, (unsigned char) '000000000000000000000000', serverkey, prekey);
 return 0;
 } //step1
 
-int step3(unsigned char io[200]) {
+int step3(unsigned char io[200], unsigned char text[24]) {
 
      //check if signature is valid
      unsigned char decrypthash[34];
-     crypto_box_open(decrypthash, io[112],34,n2,serverpublic,sk)
-     unsigned char experimenthash[34] = crypt(io, "$1$00000000$")
+     crypto_box_open(decrypthash, io[112],34,n2,serverpublic,sk);
+     unsigned char experimenthash[34] = crypt(io, "$1$00000000$");
      //if invalid, exit
      if (diff(experimenthash, decrypthash)){
      	return 1;
@@ -44,12 +44,12 @@ int step3(unsigned char io[200]) {
 
      //decrypt the message
      unsigned char plaintext[200];
-     crypto_box_open(plaintext, io,112,n2,serverpublic,sk)
+     crypto_box_open(plaintext, io,112,n2,serverpublic,sk);
      //check that nonce n1 matches
      unsigned char receivedn1[24];
-     memcpy(receivedn1, io, 24)
+     memcpy(receivedn1, io, 24);
      //if nonces don't match, exit
-     if (diff(n1 receivedn1)){
+     if (diff(n1, receivedn1)){
      	return 1;
      } //if
 
@@ -58,10 +58,10 @@ int step3(unsigned char io[200]) {
 
      //copy timestamp out of message
 	unsigned char receivedtimestamp[64];
-     memcpy(receivedtimestamp, io[48], 64)
+     memcpy(receivedtimestamp, io[48], 64);
      //get new timestamp
     struct timeval timestamp;
-	gettimeofday(&timeval, NULL)
+	gettimeofday(&timeval, NULL);
 	unsigned char timestamp[64] = (unsigned char) timeval.tv_sec;
      //if timestamps are >90 apart, exit
      if (90<(receivedtimestamp-timestamp){
@@ -71,25 +71,48 @@ int step3(unsigned char io[200]) {
      //Generate n3
      crypto_box_keypair(n3,n3); //generate nonce 3
      //concatenate n2 and n3 and the text
-     memcpy
-     //encrypt and send
- 
+     unsigned char concat[72];
+     memcpy(concat, n2, 24);
+     memcpy(concat[24], n3, 24);
+     memcpy(concat[48], text, 24);
+
+		unsigned char message[106];
+		memcpy(message, concat, 72);
+
+     
+     	//create hash for signature
+     	unsigned char hash[34];
+     	hash = crypt(concat, "$1$00000000$");
+		//finish signature and place after message
+		crypto_box(message[72],hash,34,n2,serverpublic,sk);
+
+		//encrypt message and store in io, now ready to send
+		crypto_box(io,message,106,n2,serverpublic,sk);
+
+
+
+crypto_box(io, concat, 72, n2, serverpublic, sk);
+     return 0; 
+
 } //step3
 
-//Step 1:
-C -> S: {N1, EC}ES
-//Generate Nonce
-//Generate Encrypted Keypair
+int step5(unsigned char io[200]) {
 
+     //check if signature is valid
+     unsigned char decrypthash[34];
+     crypto_box_open(decrypthash, io[48],34,n3,serverpublic,sk);
+     unsigned char experimenthash[34] = crypt(io, "$1$00000000$");
+     //if invalid, exit
+     if (diff(experimenthash, decrypthash)){
+     	return 1;
+     } //if
 
-//Create Message 
-     const unsigned char m[200]; 
-     unsigned long long mlen = 200.0;
-     unsigned char c[200];
-     crypto_box(c,m,mlen,n,pk,sk);
-//Send to server
+     //decrypt the answer
+     unsigned char plaintext[48];
+     crypto_box_open(plaintext, io,48,n3,serverpublic,sk);
+     (char) plaintext[48] = '\0';
+     printf("%s\n", (char * ) plaintext);
 
+     return 0; 
 
-
-C -> S: {M2, {h(M2)}DC}ES
-S -> C: {M3, {h(M3)}DS}EC
+} //step5
